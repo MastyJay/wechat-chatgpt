@@ -1,6 +1,6 @@
-import {ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum} from "openai";
-import {User} from "./interface";
-import {isTokenOverLimit} from "./utils.js";
+import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum } from "openai";
+import { User } from "./interface";
+import { isTokenOverLimit } from "./utils.js";
 
 /**
  * 使用内存作为数据库
@@ -70,9 +70,9 @@ class DB {
   public addUserMessage(username: string, message: string): void {
     const user = this.getUserByUsername(username);
     if (user) {
-      while (isTokenOverLimit(user.chatMessage)){
+      while (isTokenOverLimit(user.chatMessage)) {
         // 删除从第2条开始的消息(因为第一条是prompt)
-        user.chatMessage.splice(1,1);
+        user.chatMessage.splice(1, 1);
       }
       user.chatMessage.push({
         role: ChatCompletionRequestMessageRoleEnum.User,
@@ -89,9 +89,9 @@ class DB {
   public addAssistantMessage(username: string, message: string): void {
     const user = this.getUserByUsername(username);
     if (user) {
-      while (isTokenOverLimit(user.chatMessage)){
+      while (isTokenOverLimit(user.chatMessage)) {
         // 删除从第2条开始的消息(因为第一条是prompt)
-        user.chatMessage.splice(1,1);
+        user.chatMessage.splice(1, 1);
       }
       user.chatMessage.push({
         role: ChatCompletionRequestMessageRoleEnum.Assistant,

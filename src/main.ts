@@ -1,10 +1,12 @@
 import { WechatyBuilder } from "wechaty";
 import QRCode from "qrcode";
 import { ChatGPTBot } from "./bot.js";
-import {config} from "./config.js";
+import { config } from "./config.js";
+import logger from "./services/logger.js";
+
 const chatGPTBot = new ChatGPTBot();
 
-const bot =  WechatyBuilder.build({
+const bot = WechatyBuilder.build({
   name: "wechat-assistant", // generate xxxx.memory-card.json and save login data for the next login
   puppet: "wechaty-puppet-wechat",
   puppetOptions: {
@@ -17,16 +19,22 @@ async function main() {
     .on("scan", async (qrcode, status) => {
       const url = `https://wechaty.js.org/qrcode/${encodeURIComponent(qrcode)}`;
       console.log(`Scan QR Code to login: ${status}\n${url}`);
-      console.log(
-        await QRCode.toString(qrcode, { type: "terminal", small: true })
-      );
+      const qrcodeStr = await QRCode.toString(qrcode, { type: "terminal", small: true });
+      console.log(qrcodeStr);
+      logger.msg({ status, url, qrcodeStr });
     })
     .on("login", async (user) => {
-      chatGPTBot.setBotName(user.name());
-      console.log(`User ${user} logged in`);
-      console.log(`私聊触发关键词: ${config.chatPrivateTriggerKeyword}`);
-      console.log(`已设置 ${config.blockWords.length} 个聊天关键词屏蔽. ${config.blockWords}`);
-      console.log(`已设置 ${config.chatgptBlockWords.length} 个ChatGPT回复关键词屏蔽. ${config.chatgptBlockWords}`);
+      const username = user.name();
+      chatGPTBot.setBotName(username);
+      console.log(`用户登录：${username}`);
+      console.log(`私聊触发关键词：${config.chatPrivateTriggerKeyword}`);
+      console.log(`聊天关键词屏蔽（${config.blockWords.length}个）：${config.blockWords}`);
+      console.log(`回复关键词屏蔽（${config.chatgptBlockWords.length}个）：${config.chatgptBlockWords}`);
+      logger.msg({
+        username,
+        user,
+        config,
+      });
     })
     .on("message", async (message) => {
       if (message.date().getTime() < initializedAt) {
@@ -44,10 +52,10 @@ async function main() {
     });
   try {
     await bot.start();
-  } catch (e) {
-    console.error(
-      `⚠️ Bot start failed, can you log in through wechat on the web?: ${e}`
-    );
+  } catch (error) {
+    console.error(`⚠️启动失败，可以通过在网上微信登录? ${error}`);
+    logger.error({ message: '启动失败，可以通过在网上微信登录', error });
   }
 }
+
 main();
