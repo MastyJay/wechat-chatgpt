@@ -10,8 +10,13 @@ import { config } from "./config.js";
 import logger from "./services/logger.js";
 
 const configuration = new Configuration({
-  apiKey: config.openai_api_key,
-  basePath: config.api,
+  apiKey: config.openai_api_key,// parameter for apiKey security
+  // organization: '',// OpenAI organization id
+  // username: '',// parameter for basic security
+  // password: '',// parameter for basic security
+  // accessToken: '',// parameter for oauth2 security
+  // basePath: config.api,// override base path
+  // baseOptions: '',// base options for axios calls
 });
 const openai = new OpenAIApi(configuration);
 
@@ -22,29 +27,36 @@ const openai = new OpenAIApi(configuration);
  */
 async function chatgpt(username: string, message: string): Promise<string> {
   // 先将用户输入的消息添加到数据库中
-  DBUtils.addUserMessage(username, message);
-  const messages = DBUtils.getChatMessage(username);
-  const response = await openai
-    .createChatCompletion({
-      model: "gpt-3.5-turbo",
-      messages: messages,
-      temperature: config.temperature,
-    });
   let assistantMessage = "";
   try {
-    if (response.status === 200) {
-      assistantMessage = response.data.choices[0].message?.content.replace(/^\n+|\n+$/g, "") as string || "";
-    } else {
-      assistantMessage = `出了点问题，代码是： ${response.status}，${response.statusText}`;
+    DBUtils.addUserMessage(username, message);
+    const messages = DBUtils.getChatMessage(username);
+    logger.msg({ line: 'openai.ts - 29', messages });
+    try {
+      const response = await openai
+        .createChatCompletion({
+          model: "gpt-3.5-turbo",
+          messages: messages,
+          temperature: config.temperature,
+        });
+      logger.msg({ line: 'openai.ts - 35', response });
+      if (response.status === 200) {
+        assistantMessage = response.data.choices[0].message?.content.replace(/^\n+|\n+$/g, "") as string || "";
+      } else {
+        assistantMessage = `出了点问题，错误信息： ${response.status}，${response.statusText}`;
+      }
+    } catch (error) {
+      logger.error({ line: 'openai.ts - 45', assistantMessage, error });
     }
-  } catch (e: any) {
-    if (e.request) {
+  } catch (error: any) {
+    if (error.request) {
       assistantMessage = "请求出错";
     } else {
       assistantMessage = "未知错误";
     }
+    logger.error({ line: 'openai.ts - 52', assistantMessage, error });
   }
-  logger.test({ assistantMessage });
+  logger.msg({ line: 'openai.ts - 54', assistantMessage });
   return assistantMessage;
 }
 

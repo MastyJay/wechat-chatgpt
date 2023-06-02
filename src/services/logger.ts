@@ -20,9 +20,10 @@ function test(content: BaseObjectType) {
 function log(content: BaseObjectType, level: string) {
   try {
     const now = new Date();
-    const folderPath = `./logs/${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const { fDate, fDateTime } = formatDate(now);
+    const folderPath = `./logs/${fDate}`;
     const filePath = `${folderPath}/${level}.txt`;
-    const message = '\n--------------------' + `\n日期：\n${now.toISOString()}` + '\n内容：\n' + JSON.stringify(content);
+    const message = '\n--------------------' + `\n日期：\n${fDateTime}` + '\n内容：\n' + JSON.stringify(content);
     fs.stat(folderPath, (err, stats) => {
       if (err) {
         fs.mkdir(
@@ -71,21 +72,33 @@ function recordLogToFile(filePath: string, message: string) {
   // 追加，推荐
   const loggStream = fs.createWriteStream(
     filePath,
-    {
-      flags: 'a',// a追加，w新建
-    }
+    { flags: 'a' }// a追加，w新建
   );
   loggStream.write(message);
   loggStream.end();
 
   // 高并发有性能问题
   // fs.appendFile(
-  //   `./logs/${now.toISOString()}-${level}.txt`,
+  //   `./logs/somelog.txt`,
   //   message,
   //   (error) => {
   //     console.log(error);
   //   }
   // );
+}
+function formatDate(date: Date) {
+  let year = date.getFullYear();
+  let month = String(date.getMonth() + 1).padStart(2, '0');
+  let day = String(date.getDate()).padStart(2, '0');
+  let hours = String(date.getHours()).padStart(2, '0');
+  let minutes = String(date.getMinutes()).padStart(2, '0');
+  let seconds = String(date.getSeconds()).padStart(2, '0');
+
+  const fDate = `${year}-${month}-${day}`;
+  const fTime = `${hours}:${minutes}:${seconds}`;
+  const fDateTime = `${fDate} ${fTime}`;
+
+  return { fDate, fTime, fDateTime };
 }
 
 export default { info, error, msg, test, };

@@ -1,7 +1,7 @@
-import { config } from "./config.js";
 import { ContactImpl, ContactInterface, RoomImpl, RoomInterface } from "wechaty/impls";
 import { Message } from "wechaty";
 import { FileBox } from "file-box";
+import { config } from "./config.js";
 import { chatgpt, dalle, whisper } from "./openai.js";
 import DBUtils from "./data.js";
 import { regexpEncode } from "./utils.js";
@@ -45,13 +45,14 @@ export class ChatGPTBot {
   get chatGroupTriggerRegEx(): RegExp {
     return new RegExp(`^@${regexpEncode(this.botName)}\\s`);
   }
+  // 聊天专用触发规则
   get chatPrivateTriggerRule(): RegExp | undefined {
     const { chatPrivateTriggerKeyword, chatTriggerRule } = this;
-    let regEx = chatTriggerRule
+    let regEx = chatTriggerRule;
     if (!regEx && chatPrivateTriggerKeyword) {
-      regEx = new RegExp(regexpEncode(chatPrivateTriggerKeyword))
+      regEx = new RegExp(regexpEncode(chatPrivateTriggerKeyword));
     }
-    return regEx
+    return regEx;
   }
   private readonly commands: ICommand[] = [
     {
@@ -112,7 +113,7 @@ export class ChatGPTBot {
       await command.exec(contact, args.join(" "));
     }
   }
-  // remove more times conversation and mention
+  // 删除更多次对话和提及
   cleanMessage(rawText: string, privateChat: boolean = false): string {
     let text = rawText;
     const item = rawText.split("- - - - - - - - - - - - - - -");
@@ -133,24 +134,22 @@ export class ChatGPTBot {
   }
   async getGPTMessage(talkerName: string, text: string): Promise<string> {
     let gptMessage = await chatgpt(talkerName, text);
+    logger.msg({ line: 'bot.ts - 137', gptMessage });
     if (gptMessage !== "") {
       DBUtils.addAssistantMessage(talkerName, gptMessage);
       return gptMessage;
     }
-    return "Sorry, please try again later. 😔";
+    return "抱歉，请稍后重试。😔";
   }
-  // Check if the message returned by chatgpt contains masked words]
+  // 检查 chatgpt 返回的消息是否包含屏蔽词
   checkChatGPTBlockWords(message: string): boolean {
-    if (config.chatgptBlockWords.length == 0) {
-      return false;
-    }
-    return config.chatgptBlockWords.some((word) => message.includes(word));
+    return config.chatgptBlockWords.length > 0 && config.chatgptBlockWords.some((word) => message.includes(word)) || false;
   }
   // 根据消息的大小对消息进行分段
   async trySay(talker: RoomInterface | ContactInterface, mesasge: string): Promise<void> {
     const messages: Array<string> = [];
     if (this.checkChatGPTBlockWords(mesasge)) {
-      console.log(`🚫 Blocked ChatGPT: ${mesasge}`);
+      console.log(`🚫 回复内容包含屏蔽词：${mesasge}`);
       return;
     }
     let message = mesasge;
@@ -159,12 +158,11 @@ export class ChatGPTBot {
       message = message.slice(SINGLE_MESSAGE_MAX_SIZE);
     }
     messages.push(message);
-    logger.test({ line: 162, message });
     for (const msg of messages) {
       await talker.say(msg);
     }
   }
-  // Check whether the ChatGPT processing can be triggered
+  // 检查是否可以触发 chatgpt 处理
   triggerGPTMessage(text: string, privateChat: boolean = false): boolean {
     const { chatTriggerRule } = this;
     let triggered = false;
@@ -183,29 +181,25 @@ export class ChatGPTBot {
     }
     return triggered;
   }
-  // Check whether the message contains the blocked words. if so, the message will be ignored. if so, return true
+  // 检查消息是否包含被屏蔽的词汇。如果包含，消息将被忽略，即返回true。
   checkBlockWords(message: string): boolean {
-    if (config.blockWords.length == 0) {
-      return false;
-    }
-    return config.blockWords.some((word) => message.includes(word));
+    return config.blockWords.length > 0 ? config.blockWords.some((word) => message.includes(word)) : false;
   }
-  // Filter out the message that does not need to be processed
-  isNonsense(
-    talker: ContactInterface,
-    messageType: MessageType,
-    text: string
-  ): boolean {
+  // 过滤掉不需要或无法处理的消息
+  isNonsense(talker: ContactInterface, messageType: MessageType, text: string): boolean {
     return (
+      // 自己
       talker.self() ||
-      // TODO: add doc support
+      !text || !text.trim() ||
+      // TODO: 添加对文档的支持
       !(messageType == MessageType.Text || messageType == MessageType.Audio) ||
+      // 微信团队
       talker.name() === "微信团队" ||
       // 语音(视频)消息
       text.includes("收到一条视频/语音聊天消息，请在手机上查看") ||
       // 红包消息
       text.includes("收到红包，请在手机上查看") ||
-      // Transfer message
+      // 转账信息
       text.includes("收到转账，请在手机上查看") ||
       // 位置消息
       text.includes("/cgi-bin/mmwebwx-bin/webwxgetpubliclinkimg") ||
@@ -213,17 +207,12 @@ export class ChatGPTBot {
       this.checkBlockWords(text)
     );
   }
-
   async onPrivateMessage(talker: ContactInterface, text: string) {
     const gptMessage = await this.getGPTMessage(talker.name(), text);
+    logger.msg({ line: 'bot.ts - 212', gptMessage });
     await this.trySay(talker, gptMessage);
   }
-
-  async onGroupMessage(
-    talker: ContactInterface,
-    text: string,
-    room: RoomInterface
-  ) {
+  async onGroupMessage(talker: ContactInterface, text: string, room: RoomInterface) {
     const gptMessage = await this.getGPTMessage(await room.topic(), text);
     const result = `@${talker.name()} ${text}\n\n------\n ${gptMessage}`;
     await this.trySay(room, result);
@@ -235,21 +224,32 @@ export class ChatGPTBot {
     const messageType = message.type();
     const receiver = message.to();
     const privateChat = !room;
+    logger.msg({ line: 'bot.ts - 227', message });
+    let shouldSay = false;// 是否应该回复消息
     if (privateChat) {
-      console.log(`🤵 Contact: ${talker.name()} 💬 Text: ${rawText}`)
+      console.log(`🤵 用户： ${talker.name()} 💬 消息：${rawText}`);
+      // 检查唤醒关键词
+      shouldSay = !this.chatPrivateTriggerKeyword || rawText.startsWith(this.chatPrivateTriggerKeyword) || false;
     } else {
-      const topic = await room.topic()
-      console.log(`🚪 Room: ${topic} 🤵 Contact: ${talker.name()} 💬 Text: ${rawText}`)
+      // 群聊中是否被@
+      shouldSay = await message.mentionSelf();
+      const topic = await room.topic();
+      console.log(`🚪 群聊：${topic} 🤵 用户：${talker.name()} 💬 消息：${rawText}`);
     }
-    if (this.isNonsense(talker, messageType, rawText)) {
+    if (shouldSay) {
+      shouldSay = !this.isNonsense(talker, messageType, rawText);
+    }
+    if (!shouldSay) {
+      logger.msg({ line: 'bot.ts - 243', message: "亲，这是一条无需或无法处理的消息。" });
       return;
     }
     if (messageType == MessageType.Text) {
-      if (await message.mentionSelf()) {
-        const content = rawText.replace(RegExp(`^@${receiver?.name()}\\s+${"唤醒关键词"}[\\s]*`), "");
+      if (room) {
+        const content = rawText.replace(RegExp(`^@${receiver?.name()}\\s+${this.chatPrivateTriggerKeyword}[\\s]*`), "");
         await this.onPrivateMessage(talker, content);
+      } else {
+        await this.onPrivateMessage(talker, rawText);
       }
-      // message.say("你好");
     } else if (messageType == MessageType.Audio) {
       // 保存语音文件
       const fileBox = await message.toFileBox();
@@ -261,12 +261,13 @@ export class ChatGPTBot {
       // Whisper
       whisper("", fileName).then((text) => {
         message.say(text);
-      })
+      });
       return;
     }
     if (rawText.startsWith("/cmd ")) {
-      console.log(`🤖 Command: ${rawText}`)
-      const cmdContent = rawText.slice(5) // 「/cmd 」一共5个字符(注意空格)
+      logger.test({ line: 'bot.ts - 268', msg: 'rawText.startsWith("/cmd ")' });
+      console.log(`🤖 Command: ${rawText}`);
+      const cmdContent = rawText.slice(5); // 「/cmd 」一共5个字符(注意空格)
       if (privateChat) {
         await this.command(talker, cmdContent);
       } else {
@@ -276,32 +277,33 @@ export class ChatGPTBot {
     }
     // 使用DallE生成图片
     if (rawText.startsWith("/img")) {
-      console.log(`🤖 Image: ${rawText}`)
-      const imgContent = rawText.slice(4)
+      logger.test({ line: 'bot.ts - 280', msg: 'rawText.startsWith("/cmd ")' });
+      console.log(`🤖 Image: ${rawText}`);
+      const imgContent = rawText.slice(4);
       if (privateChat) {
         let url = await dalle(talker.name(), imgContent) as string;
-        const fileBox = FileBox.fromUrl(url)
-        message.say(fileBox)
+        const fileBox = FileBox.fromUrl(url);
+        message.say(fileBox);
       } else {
         let url = await dalle(await room.topic(), imgContent) as string;
-        const fileBox = FileBox.fromUrl(url)
-        message.say(fileBox)
+        const fileBox = FileBox.fromUrl(url);
+        message.say(fileBox);
       }
       return;
     }
-    if (this.triggerGPTMessage(rawText, privateChat)) {
-      const text = this.cleanMessage(rawText, privateChat);
-      if (privateChat) {
-        return await this.onPrivateMessage(talker, text);
-      } else {
-        if (!this.disableGroupMessage) {
-          return await this.onGroupMessage(talker, text, room);
-        } else {
-          return;
-        }
-      }
-    } else {
-      return;
-    }
+    // if (this.triggerGPTMessage(rawText, privateChat)) {
+    //   const text = this.cleanMessage(rawText, privateChat);
+    //   if (privateChat) {
+    //     return await this.onPrivateMessage(talker, text);
+    //   } else {
+    //     if (!this.disableGroupMessage) {
+    //       return await this.onGroupMessage(talker, text, room);
+    //     } else {
+    //       return;
+    //     }
+    //   }
+    // } else {
+    //   return;
+    // }
   }
 }

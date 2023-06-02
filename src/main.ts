@@ -21,7 +21,7 @@ async function main() {
       console.log(`Scan QR Code to login: ${status}\n${url}`);
       const qrcodeStr = await QRCode.toString(qrcode, { type: "terminal", small: true });
       console.log(qrcodeStr);
-      logger.msg({ status, url, qrcodeStr });
+      logger.msg({ line: 'main.ts - 24', status, url });
     })
     .on("login", async (user) => {
       const username = user.name();
@@ -30,11 +30,7 @@ async function main() {
       console.log(`私聊触发关键词：${config.chatPrivateTriggerKeyword}`);
       console.log(`聊天关键词屏蔽（${config.blockWords.length}个）：${config.blockWords}`);
       console.log(`回复关键词屏蔽（${config.chatgptBlockWords.length}个）：${config.chatgptBlockWords}`);
-      logger.msg({
-        username,
-        user,
-        config,
-      });
+      logger.msg({ line: 'main.ts - 33', user, config });
     })
     .on("message", async (message) => {
       if (message.date().getTime() < initializedAt) {
@@ -46,15 +42,16 @@ async function main() {
       }
       try {
         await chatGPTBot.onMessage(message);
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
+        logger.error({ line: 'main.ts - 47', error });
       }
     });
   try {
     await bot.start();
   } catch (error) {
     console.error(`⚠️启动失败，可以通过在网上微信登录? ${error}`);
-    logger.error({ message: '启动失败，可以通过在网上微信登录', error });
+    logger.error({ line: 'main.ts - 54', message: '启动失败，可以通过在网上微信登录', error });
   }
 }
 
