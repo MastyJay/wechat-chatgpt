@@ -9,16 +9,15 @@ import DBUtils from "./data.js";
 import { config } from "./config.js";
 import logger from "./services/logger.js";
 
-const configuration = new Configuration({
+const openai = new OpenAIApi(new Configuration({
   apiKey: config.openai_api_key,// parameter for apiKey security
   // organization: '',// OpenAI organization id
   // username: '',// parameter for basic security
   // password: '',// parameter for basic security
   // accessToken: '',// parameter for oauth2 security
-  // basePath: config.api,// override base path
+  basePath: config.api,// override base path
   // baseOptions: '',// base options for axios calls
-});
-const openai = new OpenAIApi(configuration);
+}));
 
 /**
  * Get completion from OpenAI
@@ -31,14 +30,13 @@ async function chatgpt(username: string, message: string): Promise<string> {
   try {
     DBUtils.addUserMessage(username, message);
     const messages = DBUtils.getChatMessage(username);
-    logger.msg({ line: 'openai.ts - 29', messages });
+    logger.msg({ line: 'openai.ts - 29', config, messages });
     try {
-      const response = await openai
-        .createChatCompletion({
-          model: "gpt-3.5-turbo",
-          messages: messages,
-          temperature: config.temperature,
-        });
+      const response = await openai.createChatCompletion({
+        model: config.model,
+        temperature: config.temperature,
+        messages: messages,
+      });
       logger.msg({ line: 'openai.ts - 35', response });
       if (response.status === 200) {
         assistantMessage = response.data.choices[0].message?.content.replace(/^\n+|\n+$/g, "") as string || "";
@@ -46,7 +44,7 @@ async function chatgpt(username: string, message: string): Promise<string> {
         assistantMessage = `出了点问题，错误信息： ${response.status}，${response.statusText}`;
       }
     } catch (error) {
-      logger.error({ line: 'openai.ts - 45', assistantMessage, error });
+      logger.error({ line: 'openai.ts - 45', config, assistantMessage, error });
     }
   } catch (error: any) {
     if (error.request) {

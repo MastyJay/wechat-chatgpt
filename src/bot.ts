@@ -134,7 +134,7 @@ export class ChatGPTBot {
   }
   async getGPTMessage(talkerName: string, text: string): Promise<string> {
     let gptMessage = await chatgpt(talkerName, text);
-    logger.msg({ line: 'bot.ts - 137', gptMessage });
+    // logger.msg({ line: 'bot.ts - 137', gptMessage });
     if (gptMessage !== "") {
       DBUtils.addAssistantMessage(talkerName, gptMessage);
       return gptMessage;
@@ -209,7 +209,7 @@ export class ChatGPTBot {
   }
   async onPrivateMessage(talker: ContactInterface, text: string) {
     const gptMessage = await this.getGPTMessage(talker.name(), text);
-    logger.msg({ line: 'bot.ts - 212', gptMessage });
+    // logger.msg({ line: 'bot.ts - 212', gptMessage });
     await this.trySay(talker, gptMessage);
   }
   async onGroupMessage(talker: ContactInterface, text: string, room: RoomInterface) {
@@ -224,7 +224,7 @@ export class ChatGPTBot {
     const messageType = message.type();
     const receiver = message.to();
     const privateChat = !room;
-    logger.msg({ line: 'bot.ts - 227', message });
+    // logger.msg({ line: 'bot.ts - 227', message });
     let shouldSay = false;// 是否应该回复消息
     if (privateChat) {
       console.log(`🤵 用户： ${talker.name()} 💬 消息：${rawText}`);
